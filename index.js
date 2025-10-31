@@ -78,16 +78,12 @@ app.post("/api/login", async (req, res) => {
     if (user.password_hash !== password_hash) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
-
-    res.status(200).json({
+ res.status(200).json({
+      success: true,
       message: "✅ Login successful!",
-      user: {
-        user_id: user.user_id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-      },
+      userId: user.user_id
     });
+    
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Database error", details: error.message });
