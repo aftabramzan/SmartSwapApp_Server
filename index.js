@@ -89,6 +89,47 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ error: "Database error", details: error.message });
   }
 });
+// --------------------------------------------Create Profile---------------------------------------------
+
+app.post('/api/create_profiles', async (req, res) => {
+    try {
+        const {
+            user_id,
+            full_name,
+            class_level,
+            stream,
+            bio,
+            phone_no,
+            address,
+            profile_image_url,
+            status
+        } = req.body;
+
+        // Validate required fields
+        if (!user_id || !full_name || !class_level || !stream) {
+            return res.status(400).json({ error: 'user_id, full_name, class_level, and stream are required.' });
+        }
+
+        // Insert into user_profile
+        const query = `
+            INSERT INTO user_profile
+            (user_id, full_name, class_level, stream, bio, phone_no, address, profile_image_url, status)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,0))
+            RETURNING *;
+        `;
+
+        const values = [user_id, full_name, class_level, stream, bio || null, phone_no || null, address || null, profile_image_url || null, status];
+
+        const result = await pool.query(query, values);
+
+        // Respond with create_profile key
+        res.status(201).json({ create_profile: result.rows[0] });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server running on port ${port}`));
