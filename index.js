@@ -90,8 +90,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 // --------------------------------------------Create Profile---------------------------------------------
-
-app.post('/api/create_profiles', async (req, res) => {
+app.post('/api/profiles', async (req, res) => {
     try {
         const {
             user_id,
@@ -122,8 +121,11 @@ app.post('/api/create_profiles', async (req, res) => {
 
         const result = await pool.query(query, values);
 
-        // Respond with create_profile key
-        res.status(201).json({ create_profile: result.rows[0] });
+        // Respond with success message + profile data
+        res.status(201).json({ 
+            message: 'Profile created successfully',
+            create_profile: result.rows[0] 
+        });
 
     } catch (err) {
         console.error(err);
