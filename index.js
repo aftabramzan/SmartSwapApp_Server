@@ -198,6 +198,121 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 });
+//---------------------------------------------Subject Selection-------------------------------------------
+// ================== SUBJECTS API ==================
+
+// ✅ 1. Master subjects list (for spinner dropdowns)
+app.get("/api/subjects/master", async (req, res) => {
+  try {
+    const subjects = [
+      "Mathematics", "Physics", "Chemistry", "Biology",
+      "Computer Science", "English", "Urdu", "Islamic Studies",
+      "Economics", "Accounting", "Programming", "AI Fundamentals"
+    ];
+    res.json({ success: true, subjects });
+  } catch (err) {
+    console.error("Error fetching master subjects:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
+
+// ✅ 2. Save or update subjects for a profile
+app.post("/api/subjects", async (req, res) => {
+  try {
+    const { profile_id, teachSubjects, learnSubjects } = req.body;
+
+    if (!profile_id)
+      return res.status(400).json({ error: "profile_id is required" });
+
+    // Convert arrays safely
+    const teachArr = Array.isArray(teachSubjects) ? teachSubjects : [];
+    const learnArr = Array.isArray(learnSubjects) ? learnSubjects : [];
+
+    // Remove existing subjects (soft delete)
+    await pool.query(
+      "UPDATE user_subjects SET deleted_at = NOW() WHERE profile_id = $1 AND deleted_at IS NULL",
+      [profile_id]
+    );
+
+    // Insert new Teach subjects
+    for (const sub of teachArr) {
+      await pool.query(
+        `INSERT INTO user_subjects (profile_id, subject_name, subject_type)
+         VALUES ($1, $2, 0)`,
+        [profile_id, sub]
+      );
+    }
+
+    // Insert new Learn subjects
+    for (const sub of learnArr) {
+      await pool.query(
+        `INSERT INTO user_subjects (profile_id, subject_name, subject_type)
+         VALUES ($1, $2, 1)`,
+        [profile_id, sub]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Subjects saved successfully",
+      total_saved: teachArr.length + learnArr.length,
+    });
+  } catch (err) {
+    console.error("Error saving subjects:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
+
+// ✅ 3. Get subjects by profile_id
+app.get("/api/subjects/:profile_id", async (req, res) => {
+  try {
+    const { profile_id } = req.params;
+
+    const result = await pool.query(
+      `SELECT subject_id, subject_name, subject_type, created_at
+       FROM user_subjects
+       WHERE profile_id = $1 AND deleted_at IS NULL
+       ORDER BY subject_type, subject_name`,
+      [profile_id]
+    );
+
+    const teach = result.rows.filter(r => r.subject_type === 0);
+    const learn = result.rows.filter(r => r.subject_type === 1);
+
+    res.json({
+      success: true,
+      profile_id,
+      teach_subjects: teach,
+      learn_subjects: learn,
+    });
+  } catch (err) {
+    console.error("Error fetching subjects:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
+
+// ✅ 4. Soft delete a specific subject
+app.delete("/api/subjects/:subject_id", async (req, res) => {
+  try {
+    const { subject_id } = req.params;
+
+    const result = await pool.query(
+      "UPDATE user_subjects SET deleted_at = NOW() WHERE subject_id = $1 RETURNING *",
+      [subject_id]
+    );
+
+    if (result.rowCount === 0)
+      return res.status(404).json({ success: false, error: "Subject not found" });
+
+    res.json({ success: true, message: "Subject deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting subject:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
 
 // ------------------------------------------- Server Start ------------------------------------------------
 const port = process.env.PORT || 3000;
