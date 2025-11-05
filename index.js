@@ -132,6 +132,52 @@ app.post('/api/profiles', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+//--------------------------------------------------------PROFILE STATUS-----------------------------------------------
 
+// ✅ API: Check user profile completion status
+app.get("/api/profile/status/:user_id", async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    // Check profile
+    const profileQuery = await pool.query(
+      "SELECT profile_id FROM user_profile WHERE user_id = $1 AND deleted_at IS NULL",
+      [user_id]
+    );
+    const hasProfile = profileQuery.rowCount > 0;
+
+    // Check skills
+    const skillQuery = await pool.query(
+      "SELECT id FROM user_skills WHERE user_id = $1 AND deleted_at IS NULL",
+      [user_id]
+    );
+    const hasSkills = skillQuery.rowCount > 0;
+
+    // Check availability
+    const availQuery = await pool.query(
+      "SELECT id FROM user_availability WHERE user_id = $1 AND deleted_at IS NULL",
+      [user_id]
+    );
+    const hasAvailability = availQuery.rowCount > 0;
+
+    // ✅ Respond with combined status
+    res.json({
+      user_id,
+      has_profile: hasProfile,
+      has_skills: hasSkills,
+      has_availability: hasAvailability,
+      next_step: !hasProfile
+        ? "Create Profile"
+        : !hasSkills
+        ? "Select Skills"
+        : !hasAvailability
+        ? "Set Availability"
+        : "Dashboard Unlocked",
+    });
+  } catch (err) {
+    console.error("Error fetching profile status:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server running on port ${port}`));
