@@ -427,6 +427,46 @@ app.get("/api/quiz/subjects/:user_id", async (req, res) => {
   }
 });
 
+// 📘 Get all teachable subjects (subject_type = 0)
+app.get("/api/subjects/teachable", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT 
+        s.subject_id,
+        s.subject_name,
+        s.subject_type,
+        s.profile_id,
+        p.full_name AS teacher_name,
+        p.class_level,
+        p.stream,
+        p.bio,
+        p.status
+      FROM user_subjects s
+      JOIN user_profile p ON s.profile_id = p.profile_id
+      JOIN users u ON p.user_id = u.user_id
+      WHERE s.subject_type = 0
+        AND s.deleted_at IS NULL
+        AND p.deleted_at IS NULL
+        AND p.status = 1   -- Only active profiles
+      ORDER BY s.subject_name ASC
+      `
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      subjects: result.rows,
+    });
+  } catch (err) {
+    console.error("❌ Error fetching teachable subjects:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch teachable subjects",
+      error: err.message,
+    });
+  }
+});
 
 
 // ------------------------------------------- Server Start ------------------------------------------------
