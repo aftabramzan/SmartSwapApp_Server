@@ -511,32 +511,36 @@ app.post("/api/quiz/generate", async (req, res) => {
     }
 
     // 🧩 1️⃣ Get subject name
-    const subjectResult = await pool.query(
-      `SELECT subject_name FROM user_subjects WHERE subject_id = $1 AND deleted_at IS NULL`,
-      [subject_id]
-    );
+   // const subjectResult = await pool.query(
+   //   `SELECT subject_name FROM user_subjects WHERE subject_id = $1 AND deleted_at IS NULL`,
+   //   [subject_id]
+  //  );
+    const subjectName = "Mathematics";
 
-    if (subjectResult.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Subject not found.",
-      });
-    }
+
+    // if (subjectResult.rowCount === 0) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "Subject not found.",
+    //   });
+    // }
+    
 
     const subjectName = subjectResult.rows[0].subject_name;
 
     // 🧩 2️⃣ Create a new quiz entry
-    const quizMeta = await pool.query(
-      `
-      INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
-      VALUES ($1, $2, $3, 'pending')
-      RETURNING quiz_id;
-      `,
-      [user_id, subject_id, total_questions]
-    );
+    // const quizMeta = await pool.query(
+    //   `
+    //   INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
+    //   VALUES ($1, $2, $3, 'pending')
+    //   RETURNING quiz_id;
+    //   `,
+    //   [user_id, subject_id, total_questions]
+    // );
 
-    const quiz_id = quizMeta.rows[0]?.quiz_id;
-    if (!quiz_id) throw new Error("Failed to create quiz metadata record");
+    // const quiz_id = quizMeta.rows[0]?.quiz_id;
+    // if (!quiz_id) throw new Error("Failed to create quiz metadata record");
+    const quiz_id = 1; // Dummy quiz id for testing
 
     // 🧩 3️⃣ Generate questions with Gemini
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
