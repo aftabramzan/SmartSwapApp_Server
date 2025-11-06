@@ -491,15 +491,17 @@ app.get("/api/subjects/teachable/:user_id", async (req, res) => {
   }
 });
 // ========================== 🧠 AI QUIZ GENERATOR ==========================
+// ========================== 🧠 AI QUIZ GENERATOR ==========================
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// 🔑 Gemini API Key (replace with your actual key)
-const genAI = new GoogleGenerativeAI("AIzaSyBdLuBsu79aQOrpoAI3r4RU_wxdPGB5LFQ");
+// ✅ Initialize Gemini API
+const genAI = new GoogleGenerativeAI(
+  process.env.GEMINI_API_KEY || "AIzaSyBdLuBsu79aQOrpoAI3r4RU_wxdPGB5LFQ"
+);
 
-// 📘 Generate AI Quiz for a given subject
 app.post("/api/quiz/generate", async (req, res) => {
   try {
-    const { user_id, subject_id, total_questions } = req.body;
+    const { user_id, subject_id, total_questions = 10 } = req.body;
 
     if (!user_id || !subject_id) {
       return res.status(400).json({
@@ -510,7 +512,7 @@ app.post("/api/quiz/generate", async (req, res) => {
 
     // 🧩 1️⃣ Get subject name
     const subjectResult = await pool.query(
-      `SELECT subject_name FROM user_subjects WHERE subject_id = $1`,
+      `SELECT subject_name FROM user_subjects WHERE subject_id = $1 AND deleted_at IS NULL`,
       [subject_id]
     );
 
@@ -523,41 +525,42 @@ app.post("/api/quiz/generate", async (req, res) => {
 
     const subjectName = subjectResult.rows[0].subject_name;
 
-    // 🧩 2️⃣ Create a quiz entry in ai_quiz_meta
+    // 🧩 2️⃣ Create a new quiz entry
     const quizMeta = await pool.query(
       `
       INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
       VALUES ($1, $2, $3, 'pending')
-      RETURNING quiz_id
+      RETURNING quiz_id;
       `,
-      [user_id, subject_id, total_questions || 10]
+      [user_id, subject_id, total_questions]
     );
 
-    const quiz_id = quizMeta.rows[0].quiz_id;
+    const quiz_id = quizMeta.rows[0]?.quiz_id;
+    if (!quiz_id) throw new Error("Failed to create quiz metadata record");
 
-    // 🧩 3️⃣ Generate quiz questions using Gemini AI
+    // 🧩 3️⃣ Generate questions with Gemini
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
-      Generate ${total_questions || 10} multiple choice questions for the subject "${subjectName}".
-      Each question should have 4 options (A, B, C, D) and specify the correct option letter.
-      Return a JSON array like:
-      [
-        {
-          "question_text": "What is ...?",
-          "option_a": "...",
-          "option_b": "...",
-          "option_c": "...",
-          "option_d": "...",
-          "correct_option": "B"
-        }
-      ]
+    Generate ${total_questions} multiple choice questions for the subject "${subjectName}".
+    Each question should have 4 options (A, B, C, D) and specify the correct option letter.
+    Return valid JSON ONLY in the format:
+    [
+      {
+        "question_text": "What is ...?",
+        "option_a": "...",
+        "option_b": "...",
+        "option_c": "...",
+        "option_d": "...",
+        "correct_option": "B"
+      }
+    ]
     `;
 
     const aiResponse = await model.generateContent(prompt);
     const text = aiResponse.response.text();
 
-    // 🧩 4️⃣ Parse JSON safely
+    // 🧩 4️⃣ Safely parse JSON
     let questions;
     try {
       questions = JSON.parse(text);
@@ -570,13 +573,13 @@ app.post("/api/quiz/generate", async (req, res) => {
       });
     }
 
-    // 🧩 5️⃣ Insert questions into database
+    // 🧩 5️⃣ Insert questions
     for (const q of questions) {
       await pool.query(
         `
         INSERT INTO ai_quiz_questions 
         (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
         `,
         [
           quiz_id,
@@ -590,12 +593,13 @@ app.post("/api/quiz/generate", async (req, res) => {
       );
     }
 
-    // 🧩 6️⃣ Update quiz status
+    // 🧩 6️⃣ Mark quiz as completed
     await pool.query(
       `UPDATE ai_quiz_meta SET status = 'completed' WHERE quiz_id = $1`,
       [quiz_id]
     );
 
+    // ✅ Final Response
     res.json({
       success: true,
       message: "✅ Quiz generated successfully!",
