@@ -144,44 +144,45 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
     const user_id = parseInt(req.params.user_id);
     console.log("🔍 Checking profile status for user:", user_id);
 
-    // Validate user_id
     if (isNaN(user_id)) {
       return res.status(400).json({ error: "Invalid user_id" });
     }
 
-    // Check each module separately
-    const profileQuery = await pool.query(
-      "SELECT profile_id FROM user_profile WHERE user_id = $1 AND (deleted_at IS NULL OR deleted_at IS NULL)",
+    // 1️⃣ Get profile_id for this user
+    const profileRes = await pool.query(
+      "SELECT profile_id FROM user_profile WHERE user_id = $1 AND deleted_at IS NULL",
       [user_id]
     );
-    const hasProfile = profileQuery.rowCount > 0;
 
+    const hasProfile = profileRes.rowCount > 0;
+    const profileId = hasProfile ? profileRes.rows[0].profile_id : null;
+
+    // Default
     let hasSkills = false;
     let hasAvailability = false;
 
-    try {
+    // 2️⃣ Check subjects (if profile exists)
+    if (profileId) {
       const skillQuery = await pool.query(
-        "SELECT id FROM user_subjects WHERE user_id = $1 AND (deleted_at IS NULL OR deleted_at IS NULL)",
-        [user_id]
+        "SELECT subject_id FROM user_subjects WHERE profile_id = $1 AND deleted_at IS NULL",
+        [profileId]
       );
       hasSkills = skillQuery.rowCount > 0;
-    } catch {
-      console.log("⚠️ user_skills table missing or not used.");
     }
 
-    try {
+    // 3️⃣ Check availability (if profile exists)
+    if (profileId) {
       const availQuery = await pool.query(
-        "SELECT id FROM user_availability WHERE user_id = $1 AND (deleted_at IS NULL OR deleted_at IS NULL)",
-        [user_id]
+        "SELECT availability_id FROM user_availability WHERE profile_id = $1 AND deleted_at IS NULL",
+        [profileId]
       );
       hasAvailability = availQuery.rowCount > 0;
-    } catch {
-      console.log("⚠️ user_availability table missing or not used.");
     }
 
-    // Final response
+    // 4️⃣ Build Response
     res.json({
       user_id,
+      profile_id: profileId,
       has_profile: hasProfile,
       has_skills: hasSkills,
       has_availability: hasAvailability,
@@ -195,9 +196,12 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
     });
   } catch (err) {
     console.error("💥 Error fetching profile status:", err.stack || err);
-    res.status(500).json({ error: "Internal Server Error", details: err.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: err.message });
   }
 });
+
 //---------------------------------------------Subject Selection-------------------------------------------
 // ================== SUBJECTS API ==================
 
