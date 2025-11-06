@@ -161,7 +161,7 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
 
     try {
       const skillQuery = await pool.query(
-        "SELECT id FROM user_skills WHERE user_id = $1 AND (deleted_at IS NULL OR deleted_at IS NULL)",
+        "SELECT id FROM user_subjects WHERE user_id = $1 AND (deleted_at IS NULL OR deleted_at IS NULL)",
         [user_id]
       );
       hasSkills = skillQuery.rowCount > 0;
