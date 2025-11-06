@@ -142,26 +142,22 @@ app.post("/api/profiles", async (req, res) => {
 app.get("/api/profile/status/:user_id", async (req, res) => {
   try {
     const user_id = parseInt(req.params.user_id);
-    console.log("🔍 Checking profile status for user:", user_id);
+    console.log("🔍 Checking profile + quiz status for user:", user_id);
 
     if (isNaN(user_id)) {
       return res.status(400).json({ error: "Invalid user_id" });
     }
 
-    // 1️⃣ Get profile_id for this user
-    const profileRes = await pool.query(
+    // ✅ Check profile
+    const profileQuery = await pool.query(
       "SELECT profile_id FROM user_profile WHERE user_id = $1 AND deleted_at IS NULL",
       [user_id]
     );
+    const hasProfile = profileQuery.rowCount > 0;
+    const profileId = hasProfile ? profileQuery.rows[0].profile_id : null;
 
-    const hasProfile = profileRes.rowCount > 0;
-    const profileId = hasProfile ? profileRes.rows[0].profile_id : null;
-
-    // Default
+    // ✅ Check subjects
     let hasSkills = false;
-    let hasAvailability = false;
-
-    // 2️⃣ Check subjects (if profile exists)
     if (profileId) {
       const skillQuery = await pool.query(
         "SELECT subject_id FROM user_subjects WHERE profile_id = $1 AND deleted_at IS NULL",
@@ -170,7 +166,8 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
       hasSkills = skillQuery.rowCount > 0;
     }
 
-    // 3️⃣ Check availability (if profile exists)
+    // ✅ Check availability
+    let hasAvailability = false;
     if (profileId) {
       const availQuery = await pool.query(
         "SELECT availability_id FROM user_availability WHERE profile_id = $1 AND deleted_at IS NULL",
@@ -179,28 +176,50 @@ app.get("/api/profile/status/:user_id", async (req, res) => {
       hasAvailability = availQuery.rowCount > 0;
     }
 
-    // 4️⃣ Build Response
+    // ✅ Check if quiz is completed for all subjects
+    let allQuizzesCompleted = false;
+    if (profileId && hasSkills) {
+      const quizQuery = await pool.query(
+        `
+        SELECT COUNT(*) AS total, 
+               SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
+        FROM ai_quiz_meta 
+        WHERE user_id = $1 AND deleted_at IS NULL
+        `,
+        [user_id]
+      );
+
+      const total = parseInt(quizQuery.rows[0].total || 0);
+      const completed = parseInt(quizQuery.rows[0].completed || 0);
+      allQuizzesCompleted = total > 0 && total === completed;
+    }
+
+    // ✅ Determine Next Step
+    const nextStep = !hasProfile
+      ? "Create Profile"
+      : !hasSkills
+      ? "Select Skills"
+      : !hasAvailability
+      ? "Set Availability"
+      : !allQuizzesCompleted
+      ? "Start Quiz"
+      : "Dashboard Unlocked";
+
     res.json({
       user_id,
       profile_id: profileId,
       has_profile: hasProfile,
       has_skills: hasSkills,
       has_availability: hasAvailability,
-      next_step: !hasProfile
-        ? "Create Profile"
-        : !hasSkills
-        ? "Select Skills"
-        : !hasAvailability
-        ? "Set Availability"
-        : "Dashboard Unlocked",
+      quiz_completed: allQuizzesCompleted,
+      next_step: nextStep,
     });
   } catch (err) {
-    console.error("💥 Error fetching profile status:", err.stack || err);
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: err.message });
+    console.error("💥 Error checking profile status:", err.stack || err);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 });
+
 
 //---------------------------------------------Subject Selection-------------------------------------------
 // ================== SUBJECTS API ==================
