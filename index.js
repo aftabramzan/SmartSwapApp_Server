@@ -428,8 +428,18 @@ app.get("/api/quiz/subjects/:user_id", async (req, res) => {
 });
 
 // 📘 Get all teachable subjects (subject_type = 0)
-app.get("/api/subjects/teachable", async (req, res) => {
+// 📘 Get teachable subjects for the logged-in user
+app.get("/api/subjects/teachable/:user_id", async (req, res) => {
   try {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required.",
+      });
+    }
+
     const result = await pool.query(
       `
       SELECT 
@@ -437,21 +447,30 @@ app.get("/api/subjects/teachable", async (req, res) => {
         s.subject_name,
         s.subject_type,
         s.profile_id,
-        p.full_name AS teacher_name,
+        p.full_name,
         p.class_level,
         p.stream,
         p.bio,
         p.status
       FROM user_subjects s
       JOIN user_profile p ON s.profile_id = p.profile_id
-      JOIN users u ON p.user_id = u.user_id
-      WHERE s.subject_type = 0
+      WHERE p.user_id = $1
+        AND s.subject_type = 0         -- only teachable subjects
         AND s.deleted_at IS NULL
         AND p.deleted_at IS NULL
-        AND p.status = 1   -- Only active profiles
+        AND p.status = 1               -- active profile
       ORDER BY s.subject_name ASC
-      `
+      `,
+      [user_id]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No teachable subjects found for this user.",
+        subjects: [],
+      });
+    }
 
     res.json({
       success: true,
@@ -459,10 +478,10 @@ app.get("/api/subjects/teachable", async (req, res) => {
       subjects: result.rows,
     });
   } catch (err) {
-    console.error("❌ Error fetching teachable subjects:", err);
+    console.error("❌ Error fetching user's teachable subjects:", err);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch teachable subjects",
+      message: "Internal server error while fetching teachable subjects.",
       error: err.message,
     });
   }
