@@ -537,20 +537,27 @@ app.post("/api/quiz/generate", async (req, res) => {
       ]
     `;
 
-    const aiResponse = await model.generateContent(prompt);
-    const text = aiResponse.response.text();
+   const aiResponse = await model.generateContent(prompt);
+const text = aiResponse.response.text();
 
-    let questions;
-    try {
-      questions = JSON.parse(text);
-    } catch (err) {
-      console.error("⚠️ AI returned invalid JSON:", text);
-      return res.status(500).json({
-        success: false,
-        message: "Invalid AI response format.",
-        raw: text,
-      });
-    }
+// 🧩 4️⃣ Safely parse JSON (with cleanup)
+let cleanText = text.trim();
+if (cleanText.startsWith("```")) {
+  cleanText = cleanText.replace(/```json|```/g, "").trim();
+}
+
+let questions;
+try {
+  questions = JSON.parse(cleanText);
+} catch (err) {
+  console.error("⚠️ AI returned invalid JSON:", cleanText);
+  return res.status(500).json({
+    success: false,
+    message: "Invalid AI response format.",
+    raw: cleanText,
+  });
+}
+
 
     // 🧩 Normally here you would insert into DB, but we'll skip it
     // for testing purpose
