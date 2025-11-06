@@ -319,7 +319,7 @@ app.post("/api/availability/save", async (req, res) => {
   try {
     const { profile_id, availability } = req.body;
 
-    // --- Validation ---
+    // --- Basic validation ---
     if (!profile_id) {
       return res.status(400).json({
         success: false,
@@ -334,79 +334,43 @@ app.post("/api/availability/save", async (req, res) => {
       });
     }
 
-    // Validate each slot
+    // ✅ Optional: Validate each slot structure
     for (const [index, slot] of availability.entries()) {
       const { day_of_week, start_time, end_time } = slot;
 
-      if (
-        day_of_week === undefined ||
-        !start_time ||
-        !end_time
-      ) {
+      if (!day_of_week || !start_time || !end_time) {
         return res.status(400).json({
           success: false,
           message: `Invalid slot at index ${index}. Required fields: day_of_week, start_time, end_time.`,
         });
       }
-
-      // Optional: Validate time format (e.g., "HH:mm")
-      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-      if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid time format at index ${index}. Expected 'HH:mm'.`,
-        });
-      }
     }
 
-    // --- Insert slots ---
+    // ✅ Insert data into database
     const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    await client.query("BEGIN");
 
-      for (const slot of availability) {
-        await client.query(
-          `INSERT INTO user_availability (profile_id, day_of_week, start_time, end_time)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (profile_id, day_of_week, start_time, end_time) DO NOTHING`,
-          [profile_id, slot.day_of_week, slot.start_time, slot.end_time]
-        );
-      }
-
-      await client.query("COMMIT");
-
-      return res.json({
-        success: true,
-        message: "Availability saved successfully.",
-      });
-    } catch (dbError) {
-      await client.query("ROLLBACK");
-
-      // 🎯 Detailed DB error handling
-      if (dbError.code === "23505") {
-        // unique_violation
-        return res.status(409).json({
-          success: false,
-          message: "Duplicate availability slot detected.",
-          details: dbError.detail,
-        });
-      }
-
-      console.error("Database error while saving availability:", dbError);
-      return res.status(500).json({
-        success: false,
-        message: "Database operation failed.",
-        error: dbError.message,
-      });
-    } finally {
-      client.release();
+    for (const slot of availability) {
+      await client.query(
+        `INSERT INTO user_availability (profile_id, day_of_week, start_time, end_time)
+         VALUES ($1, $2, $3, $4)`,
+        [profile_id, slot.day_of_week, slot.start_time, slot.end_time]
+      );
     }
-  } catch (err) {
-    console.error("Unexpected error saving availability:", err);
+
+    await client.query("COMMIT");
+    client.release();
+
+    return res.status(201).json({
+      success: true,
+      message: "Availability saved successfully.",
+    });
+  } catch (error) {
+    console.error("❌ Error saving availability:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error.",
-      error: err.message,
+      error: error.message,
     });
   }
 });
