@@ -496,7 +496,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ✅ Initialize Gemini API
 const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY || "AIzaSyBdLuBsu79aQOrpoAI3r4RU_wxdPGB5LFQ"
+  process.env.GEMINI_API_KEY || "AIzaSyAafxCY3cuvKEytTBuqHdLZ9Siu9KRZgmQ"
 );
 
 app.post("/api/quiz/generate", async (req, res) => {
