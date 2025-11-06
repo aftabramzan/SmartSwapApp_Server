@@ -399,9 +399,17 @@ app.post("/api/availability/save", async (req, res) => {
 });
 //--------------------------------------------Quiz Section--------------------------------------------------
 // 📘 Get teachable subjects for quiz
+// 📘 Get teachable subjects for quiz
 app.get("/api/quiz/subjects/:user_id", async (req, res) => {
   try {
     const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
 
     const result = await pool.query(
       `
@@ -415,15 +423,29 @@ app.get("/api/quiz/subjects/:user_id", async (req, res) => {
       [user_id]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subjects found for this user.",
+        subjects: [],
+      });
+    }
+
     res.json({
       success: true,
+      count: result.rows.length,
       subjects: result.rows,
     });
   } catch (err) {
     console.error("❌ Error fetching quiz subjects:", err);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch subjects.",
+      error: err.message,
+    });
   }
 });
+
 
 // ------------------------------------------- Server Start ------------------------------------------------
 const port = process.env.PORT || 3000;
