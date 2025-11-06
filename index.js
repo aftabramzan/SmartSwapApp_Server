@@ -526,7 +526,7 @@ app.post("/api/quiz/generate", async (req, res) => {
     // }
     
 
-    const subjectName = subjectResult.rows[0].subject_name;
+   // const subjectName = subjectResult.rows[0].subject_name;
 
     // 🧩 2️⃣ Create a new quiz entry
     // const quizMeta = await pool.query(
