@@ -403,33 +403,18 @@ app.post("/api/availability/save", async (req, res) => {
 app.get("/api/quiz/subjects/:user_id", async (req, res) => {
   try {
     const { user_id } = req.params;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required",
-      });
-    }
-
     const result = await pool.query(
       `
-      SELECT s.subject_id, s.subject_name
+      SELECT s.subject_id, s.subject_name, s.subject_type, s.profile_id
       FROM user_subjects s
       JOIN user_profile p ON p.profile_id = s.profile_id
       WHERE p.user_id = $1
-      AND s.subject_type = 0
       AND s.deleted_at IS NULL
       `,
       [user_id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No subjects found for this user.",
-        subjects: [],
-      });
-    }
+    console.log("Subjects fetched for user", user_id, "=>", result.rows);
 
     res.json({
       success: true,
@@ -438,13 +423,10 @@ app.get("/api/quiz/subjects/:user_id", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error fetching quiz subjects:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch subjects.",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 
 // ------------------------------------------- Server Start ------------------------------------------------
