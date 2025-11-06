@@ -498,87 +498,164 @@ const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY || "AIzaSyAafxCY3cuvKEytTBuqHdLZ9Siu9KRZgmQ"
 );
 
-// ✅ Test route
-app.get("/", (req, res) => res.send("AI Quiz API running ✅"));
+app.post("/generate-quiz", async (req, res) => {
+  const { user_id, subject_id, subject_name, total_questions = 5 } = req.body;
 
-app.post("/api/quiz/generate", async (req, res) => {
+  if (!user_id || !subject_id || !subject_name) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields: user_id, subject_id, subject_name",
+    });
+  }
+
   try {
-    const { user_id, subject_id, total_questions = 5 } = req.body;
-
-    if (!user_id || !subject_id) {
-      return res.status(400).json({
-        success: false,
-        message: "user_id and subject_id are required.",
-      });
-    }
-
-    // 🧩 Temporary subject name for testing
-    const subjectName = "Mathematics";
-    const quiz_id = 1; // dummy
-
-    // 🧠 Use valid Gemini model name
-    const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash" });
+    // 1️⃣ Generate quiz from Gemini
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
-      Generate ${total_questions} multiple-choice questions for the subject "${subjectName}".
-      Each question must have:
-      - 4 options (A, B, C, D)
-      - a correct option letter
-      Return JSON ONLY in this format:
-      [
-        {
-          "question_text": "What is ...?",
-          "option_a": "...",
-          "option_b": "...",
-          "option_c": "...",
-          "option_d": "...",
-          "correct_option": "B"
-        }
-      ]
+    Generate ${total_questions} multiple-choice questions for the subject "${subject_name}".
+    Each question must have 4 options (A, B, C, D) and one correct answer.
+    Respond in JSON format like:
+    [
+      {
+        "question_text": "Sample question?",
+        "option_a": "A",
+        "option_b": "B",
+        "option_c": "C",
+        "option_d": "D",
+        "correct_option": "A"
+      }
+    ]
     `;
 
-   const aiResponse = await model.generateContent(prompt);
-const text = aiResponse.response.text();
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const questions = JSON.parse(text);
 
-// 🧩 4️⃣ Safely parse JSON (with cleanup)
-let cleanText = text.trim();
-if (cleanText.startsWith("```")) {
-  cleanText = cleanText.replace(/```json|```/g, "").trim();
-}
+    // 2️⃣ Insert into ai_quiz_meta
+    const metaResult = await pool.query(
+      `INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
+       VALUES ($1, $2, $3, 'completed') RETURNING quiz_id`,
+      [user_id, subject_id, total_questions]
+    );
 
-let questions;
-try {
-  questions = JSON.parse(cleanText);
-} catch (err) {
-  console.error("⚠️ AI returned invalid JSON:", cleanText);
-  return res.status(500).json({
-    success: false,
-    message: "Invalid AI response format.",
-    raw: cleanText,
-  });
-}
+    const quiz_id = metaResult.rows[0].quiz_id;
 
+    // 3️⃣ Insert questions into ai_quiz_questions
+    for (const q of questions) {
+      await pool.query(
+        `INSERT INTO ai_quiz_questions 
+        (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          quiz_id,
+          q.question_text,
+          q.option_a,
+          q.option_b,
+          q.option_c,
+          q.option_d,
+          q.correct_option,
+        ]
+      );
+    }
 
-    // 🧩 Normally here you would insert into DB, but we'll skip it
-    // for testing purpose
-
+    // 4️⃣ Response back to frontend
     res.json({
       success: true,
-      message: "✅ Quiz generated successfully!",
+      message: "✅ Quiz generated and stored successfully!",
       quiz_id,
-      subject: subjectName,
-      total_questions: questions.length,
+      subject: subject_name,
+      total_questions,
       questions,
     });
   } catch (err) {
-    console.error("❌ Error generating AI quiz:", err);
-    res.status(500).json({
-      success: false,
-      message: "Error generating AI quiz",
-      error: err.message,
-    });
+    console.error("❌ Error:", err);
+    res.status(500).json({ success: false, message: "Server Error", error: err.message });
   }
 });
+
+
+// // ✅ Test route
+// app.get("/", (req, res) => res.send("AI Quiz API running ✅"));
+
+// app.post("/api/quiz/generate", async (req, res) => {
+//   try {
+//     const { user_id, subject_id, total_questions = 5 } = req.body;
+
+//     if (!user_id || !subject_id) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "user_id and subject_id are required.",
+//       });
+//     }
+
+//     // 🧩 Temporary subject name for testing
+//     const subjectName = "Mathematics";
+//     const quiz_id = 1; // dummy
+
+//     // 🧠 Use valid Gemini model name
+//     const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash" });
+
+//     const prompt = `
+//       Generate ${total_questions} multiple-choice questions for the subject "${subjectName}".
+//       Each question must have:
+//       - 4 options (A, B, C, D)
+//       - a correct option letter
+//       Return JSON ONLY in this format:
+//       [
+//         {
+//           "question_text": "What is ...?",
+//           "option_a": "...",
+//           "option_b": "...",
+//           "option_c": "...",
+//           "option_d": "...",
+//           "correct_option": "B"
+//         }
+//       ]
+//     `;
+
+//    const aiResponse = await model.generateContent(prompt);
+// const text = aiResponse.response.text();
+
+// // 🧩 4️⃣ Safely parse JSON (with cleanup)
+// let cleanText = text.trim();
+// if (cleanText.startsWith("```")) {
+//   cleanText = cleanText.replace(/```json|```/g, "").trim();
+// }
+
+// let questions;
+// try {
+//   questions = JSON.parse(cleanText);
+// } catch (err) {
+//   console.error("⚠️ AI returned invalid JSON:", cleanText);
+//   return res.status(500).json({
+//     success: false,
+//     message: "Invalid AI response format.",
+//     raw: cleanText,
+//   });
+// }
+
+
+//     // 🧩 Normally here you would insert into DB, but we'll skip it
+//     // for testing purpose
+
+//     res.json({
+//       success: true,
+//       message: "✅ Quiz generated successfully!",
+//       quiz_id,
+//       subject: subjectName,
+//       total_questions: questions.length,
+//       questions,
+//     });
+//   } catch (err) {
+//     console.error("❌ Error generating AI quiz:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Error generating AI quiz",
+//       error: err.message,
+//     });
+//   }
+// });
 
 // ------------------------------------------- Server Start ------------------------------------------------
 const port = process.env.PORT || 3000;
