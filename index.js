@@ -405,15 +405,21 @@ app.get("/api/quiz/subjects/:user_id", async (req, res) => {
     const { user_id } = req.params;
     const result = await pool.query(
       `
-      SELECT s.subject_id, s.subject_name, s.subject_type, s.profile_id
+      SELECT 
+        s.subject_id, 
+        s.subject_name, 
+        s.subject_type, 
+        s.profile_id
       FROM user_subjects s
       JOIN user_profile p ON p.profile_id = s.profile_id
       WHERE p.user_id = $1
-      AND s.deleted_at IS NULL
+        AND s.subject_type = 0       -- ✅ Only teachable subjects
+        AND s.deleted_at IS NULL
+        AND p.deleted_at IS NULL
+        AND p.status = 1
       `,
       [user_id]
     );
-
     console.log("Subjects fetched for user", user_id, "=>", result.rows);
 
     res.json({
