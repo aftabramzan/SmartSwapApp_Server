@@ -543,7 +543,10 @@ app.post("/api/quiz/generate", async (req, res) => {
     const quiz_id = 1; // Dummy quiz id for testing
 
     // 🧩 3️⃣ Generate questions with Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+   // const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
 
     const prompt = `
     Generate ${total_questions} multiple choice questions for the subject "${subjectName}".
