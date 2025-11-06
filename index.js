@@ -397,6 +397,33 @@ app.post("/api/availability/save", async (req, res) => {
     });
   }
 });
+//--------------------------------------------Quiz Section--------------------------------------------------
+// 📘 Get teachable subjects for quiz
+app.get("/api/quiz/subjects/:user_id", async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT s.subject_id, s.subject_name
+      FROM user_subjects s
+      JOIN user_profile p ON p.profile_id = s.profile_id
+      WHERE p.user_id = $1
+      AND s.subject_type = 0
+      AND s.deleted_at IS NULL
+      `,
+      [user_id]
+    );
+
+    res.json({
+      success: true,
+      subjects: result.rows,
+    });
+  } catch (err) {
+    console.error("❌ Error fetching quiz subjects:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
 
 // ------------------------------------------- Server Start ------------------------------------------------
 const port = process.env.PORT || 3000;
