@@ -528,13 +528,13 @@ app.post("/api/quiz/generate", async (req, res) => {
 
     // 🧩 2️⃣ Insert into ai_quiz_meta
     const quizMeta = await pool.query(
-      `INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
-       VALUES ($1, $2, $3, 'pending')
-       RETURNING quiz_id`,
-      [user_id, subject_id, total_questions]
-    );
+  `INSERT INTO ai_quiz_meta (user_id, subject_id, total_questions, status)
+   VALUES ($1, $2, $3, 'pending')
+   RETURNING quiz_id`,
+  [user_id, subject_id, total_questions]
+);
 
-    const quiz_id = quizMeta.rows[0].quiz_id;
+const quiz_id = quizMeta.rows[0].quiz_id;
 
     // 🧩 3️⃣ Generate Questions with Gemini
     const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash" });
