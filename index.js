@@ -686,14 +686,14 @@ app.post("/api/quiz/generate", async (req, res) => {
     // 🧩 Normally here you would insert into DB, but we'll skip it
     // for testing purpose
 
-    res.json({
-      success: true,
-      message: "✅ Quiz generated successfully!",
-      quiz_id,
-      subject: subjectName,
-      total_questions: questions.length,
-      questions,
-    });
+    // res.json({
+    //   success: true,
+    //   message: "✅ Quiz generated successfully!",
+    //   quiz_id,
+    //   subject: subjectName,
+    //   total_questions: questions.length,
+    //   questions,
+    // });
   } catch (err) {
     console.error("❌ Error generating AI quiz:", err);
     res.status(500).json({
