@@ -1,7 +1,7 @@
 import express from "express";
 import pkg from "pg";
 import dotenv from "dotenv";
-
+import bodyParser from "body-parser";
 dotenv.config();
 const { Pool } = pkg;
 
