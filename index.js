@@ -6,6 +6,10 @@ dotenv.config();
 const { Pool } = pkg;
 
 const app = express();
+app.use(bodyParser.json({ limit: "20mb" }));
+app.use(bodyParser.urlencoded({ limit: "20mb", extended: true }));
+
+app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
@@ -88,6 +92,56 @@ app.post("/api/login", async (req, res) => {
 });
 
 // -------------------------------------------- Create Profile ---------------------------------------------
+// app.post("/api/profiles", async (req, res) => {
+//   try {
+//     const {
+//       user_id,
+//       full_name,
+//       class_level,
+//       stream,
+//       bio,
+//       phone_no,
+//       address,
+//       profile_image_url,
+//       status,
+//     } = req.body;
+
+//     if (!user_id || !full_name || !class_level || stream === undefined) {
+//       return res.status(400).json({ error: "user_id, full_name, class_level, and stream are required." });
+//     }
+
+//     // ⚠️ stream fix: only allow 0 or 1
+//     const safeStream = [0, 1].includes(Number(stream)) ? Number(stream) : 0;
+
+//     const query = `
+//       INSERT INTO user_profile
+//       (user_id, full_name, class_level, stream, bio, phone_no, address, profile_image_url, status)
+//       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,0))
+//       RETURNING *;
+//     `;
+//     const values = [user_id, full_name, class_level, safeStream, bio || null, phone_no || null, address || null, profile_image_url || null, status];
+
+//     const result = await pool.query(query, values);
+
+//     res.status(201).json({
+//       message: "✅ Profile created successfully",
+//       create_profile: result.rows[0],
+//     });
+//   } catch (err) {
+//     if (err.code === "23505") {
+//       // Duplicate user_id
+//       return res.status(400).json({ error: "Profile already exists for this user." });
+//     }
+//     if (err.code === "23514") {
+//       // Stream constraint failed
+//       return res.status(400).json({ error: "Invalid stream value. Must be 0 (Pre-Medical) or 1 (Pre-Engineering)." });
+//     }
+
+//     console.error("Profile creation error:", err.message);
+//     res.status(500).json({ error: "Internal Server Error", details: err.message });
+//   }
+// });
+
 app.post("/api/profiles", async (req, res) => {
   try {
     const {
@@ -103,10 +157,11 @@ app.post("/api/profiles", async (req, res) => {
     } = req.body;
 
     if (!user_id || !full_name || !class_level || stream === undefined) {
-      return res.status(400).json({ error: "user_id, full_name, class_level, and stream are required." });
+      return res.status(400).json({
+        error: "user_id, full_name, class_level, and stream are required.",
+      });
     }
 
-    // ⚠️ stream fix: only allow 0 or 1
     const safeStream = [0, 1].includes(Number(stream)) ? Number(stream) : 0;
 
     const query = `
@@ -115,28 +170,45 @@ app.post("/api/profiles", async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,0))
       RETURNING *;
     `;
-    const values = [user_id, full_name, class_level, safeStream, bio || null, phone_no || null, address || null, profile_image_url || null, status];
+    const values = [
+      user_id,
+      full_name,
+      class_level,
+      safeStream,
+      bio || null,
+      phone_no || null,
+      address || null,
+      profile_image_url || null,
+      status,
+    ];
 
     const result = await pool.query(query, values);
 
     res.status(201).json({
+      success: true,
       message: "✅ Profile created successfully",
       create_profile: result.rows[0],
     });
   } catch (err) {
+    console.error("Profile creation error:", err.message);
+
     if (err.code === "23505") {
-      // Duplicate user_id
-      return res.status(400).json({ error: "Profile already exists for this user." });
+      return res
+        .status(400)
+        .json({ error: "Profile already exists for this user." });
     }
     if (err.code === "23514") {
-      // Stream constraint failed
-      return res.status(400).json({ error: "Invalid stream value. Must be 0 (Pre-Medical) or 1 (Pre-Engineering)." });
+      return res
+        .status(400)
+        .json({ error: "Invalid stream value. Must be 0 or 1." });
     }
 
-    console.error("Profile creation error:", err.message);
-    res.status(500).json({ error: "Internal Server Error", details: err.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: err.message });
   }
 });
+
 
 // ------------------------------------------------ PROFILE STATUS ------------------------------------------------
 app.get("/api/profile/status/:user_id", async (req, res) => {
