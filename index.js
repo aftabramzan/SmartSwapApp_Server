@@ -104,10 +104,14 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password required" });
     }
 
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    // Soft deleted users ko exclude karte hue query
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL",
+      [email]
+    );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "User not found or deleted" });
     }
 
     const user = result.rows[0];
